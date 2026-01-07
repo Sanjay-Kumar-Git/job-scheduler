@@ -18,6 +18,7 @@ import GlobalStyles from "./styles/GlobalStyles";
 
 import CreateJobPage from "./pages/CreateJobPage";
 import JobsPage from "./pages/JobsPage";
+import NotFound from './pages/NotFound'
 
 /* ---------- Component ---------- */
 
@@ -40,6 +41,7 @@ const App = () => {
 
           {/* Jobs dashboard page */}
           <Route path="/jobs" element={<JobsPage />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </ThemeContextProvider>
