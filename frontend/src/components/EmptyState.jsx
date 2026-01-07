@@ -138,10 +138,10 @@ const EmptyState = () => {
         alt="No jobs available"
       />
 
-      <Title>No jobs created yet</Title>
+      <Title>No job Found</Title>
 
       <Subtitle>
-        You haven’t created any jobs yet.
+        No Job Found Please.
         Create your first job to start processing tasks.
       </Subtitle>
       <Button onClick={handleCreateJob}>Create Job</Button>
