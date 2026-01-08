@@ -439,3 +439,7 @@ Full-Stack Developer<br/></b>
   * Frontend state synchronization
 
   * Event-based notifications using webhooks
+---
+  # Note:
+<i>This project uses SQLite as per the assignment requirement.
+When deployed on Render Free tier, the SQLite database is stored in ephemeral storage, so data may reset when the service restarts.
