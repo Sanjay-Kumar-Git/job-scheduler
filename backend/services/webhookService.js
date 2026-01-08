@@ -17,22 +17,33 @@ import axios from "axios";
  * - Contains jobId, taskName, status, priority, payload, completedAt
  */
 export const triggerWebhook = async (data) => {
-  // Read webhook URL from environment variables
   const WEBHOOK_URL = process.env.WEBHOOK_URL;
+
+  // 🔴 CRITICAL DEBUG LOG
+  console.log("Webhook URL being used:", WEBHOOK_URL);
 
   // Safety check: webhook is optional
   if (!WEBHOOK_URL) {
-    console.error("Webhook URL missing");
-    return;
+    throw new Error("WEBHOOK_URL is missing in environment variables");
   }
 
   try {
-    // Send POST request to external service
-    await axios.post(WEBHOOK_URL, data);
+    await axios.post(WEBHOOK_URL, data, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      timeout: 5000, // avoid hanging forever
+    });
 
-    console.log("Webhook triggered successfully");
+    console.log("✅ Webhook triggered successfully");
   } catch (error) {
-    // Log error but DO NOT crash job execution
-    console.log(`Webhook failed: ${error.message}`);
+    console.error(
+      "❌ Webhook request failed:",
+      error.response?.status,
+      error.message
+    );
+
+    // IMPORTANT: rethrow error so controller can mark webhookStatus = failed
+    throw error;
   }
 };

@@ -2,10 +2,9 @@
  * jobController.js
  *
  * Purpose:
- * - Acts as the controller layer in MVC architecture
  * - Handles HTTP requests and responses
- * - Delegates database logic to jobService
- * - Manages job lifecycle (create, run, update, delete)
+ * - Manages job lifecycle
+ * - Triggers webhook on completion
  */
 
 import {
@@ -14,7 +13,8 @@ import {
   fetchJobById,
   updateJobStatus,
   deleteJobById,
-  updateJobById
+  updateJobById,
+  updateWebhookStatus,
 } from "../services/jobService.js";
 
 import { triggerWebhook } from "../services/webhookService.js";
@@ -22,34 +22,30 @@ import { triggerWebhook } from "../services/webhookService.js";
 /* -------------------------------------------------------------------------- */
 /*                               CREATE JOB                                   */
 /* -------------------------------------------------------------------------- */
-/**
- * POST /jobs
- * - Creates a new job
- * - Initial status is set to "pending"
- */
 export const createJob = async (req, res) => {
   try {
     const { taskName, payload, priority } = req.body;
 
-    // Basic validation
     if (!taskName || !priority) {
       return res.status(400).json({
         message: "taskName and priority are required",
       });
     }
 
-    // Insert job into database
     const jobId = await insertJob({
       taskName,
       payload,
       priority,
     });
 
+    console.log("✅ Job created with ID:", jobId);
+
     res.status(201).json({
       message: "Job created successfully",
       jobId,
     });
   } catch (error) {
+    console.error("❌ Create job error:", error.message);
     res.status(500).json({
       message: "Failed to create job",
       error: error.message,
@@ -60,15 +56,9 @@ export const createJob = async (req, res) => {
 /* -------------------------------------------------------------------------- */
 /*                               GET ALL JOBS                                 */
 /* -------------------------------------------------------------------------- */
-/**
- * GET /jobs
- * - Fetches all jobs
- * - Supports optional filtering by status and priority
- */
 export const getJobs = async (req, res) => {
   try {
     const { status, priority } = req.query;
-
     const jobs = await fetchJobs({ status, priority });
     res.json(jobs);
   } catch (error) {
@@ -79,20 +69,13 @@ export const getJobs = async (req, res) => {
 /* -------------------------------------------------------------------------- */
 /*                               GET JOB BY ID                                */
 /* -------------------------------------------------------------------------- */
-/**
- * GET /jobs/:id
- * - Fetches a single job by ID
- */
 export const getJobById = async (req, res) => {
   try {
     const { id } = req.params;
-
     const job = await fetchJobById(id);
 
     if (!job) {
-      return res.status(404).json({
-        message: "Job not found",
-      });
+      return res.status(404).json({ message: "Job not found" });
     }
 
     res.json(job);
@@ -104,22 +87,12 @@ export const getJobById = async (req, res) => {
 /* -------------------------------------------------------------------------- */
 /*                                RUN JOB                                     */
 /* -------------------------------------------------------------------------- */
-/**
- * POST /jobs/:id/run
- *
- * Flow:
- * 1. Check job exists
- * 2. Allow execution only if status is "pending"
- * 3. Update status to "running"
- * 4. Simulate async execution using setTimeout
- * 5. Mark job as "completed"
- * 6. Trigger webhook on completion
- */
 export const runJob = async (req, res) => {
   try {
     const { id } = req.params;
-
     const job = await fetchJobById(id);
+
+    console.log("▶️ Run job requested for ID:", id);
 
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
@@ -133,30 +106,46 @@ export const runJob = async (req, res) => {
 
     // Mark job as running
     await updateJobStatus(id, "running");
+    console.log("⏳ Job marked as RUNNING");
 
     res.json({ message: "Job started" });
 
-    // Simulate background processing
+    // 🔴 SIMULATED BACKGROUND EXECUTION
     setTimeout(async () => {
-      try {
-        // Mark job as completed
-        await updateJobStatus(id, "completed", true);
+      console.log("⏰ setTimeout fired for job ID:", id);
 
-        // Trigger webhook after completion
-        await triggerWebhook({
+      try {
+        // Mark job completed
+        await updateJobStatus(id, "completed", true);
+        console.log("✅ Job marked as COMPLETED");
+
+        const webhookPayload = {
           jobId: job.id,
           taskName: job.taskName,
           status: "completed",
           priority: job.priority,
           payload: job.payload ? JSON.parse(job.payload) : null,
           completedAt: new Date(),
-        });
+        };
+
+        console.log("📤 Sending webhook payload:", webhookPayload);
+
+        try {
+          await triggerWebhook(webhookPayload);
+          console.log("✅ Webhook SUCCESS");
+          await updateWebhookStatus(id, "success");
+        } catch (webhookError) {
+          console.error("❌ Webhook FAILED");
+          await updateWebhookStatus(id, "failed");
+        }
+
       } catch (err) {
-        console.error("Background job error:", err.message);
+        console.error("❌ Background job error:", err.message);
       }
     }, 3000);
 
   } catch (error) {
+    console.error("❌ Run job error:", error.message);
     res.status(500).json({ message: error.message });
   }
 };
@@ -164,15 +153,9 @@ export const runJob = async (req, res) => {
 /* -------------------------------------------------------------------------- */
 /*                               DELETE JOB                                   */
 /* -------------------------------------------------------------------------- */
-/**
- * DELETE /jobs/:id
- * - Deletes a job
- * - Prevents deletion if job is currently running
- */
 export const deleteJob = async (req, res) => {
   try {
     const { id } = req.params;
-
     const job = await fetchJobById(id);
 
     if (!job) {
@@ -186,7 +169,6 @@ export const deleteJob = async (req, res) => {
     }
 
     await deleteJobById(id);
-
     res.json({ message: "Job deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -196,17 +178,11 @@ export const deleteJob = async (req, res) => {
 /* -------------------------------------------------------------------------- */
 /*                               UPDATE JOB                                   */
 /* -------------------------------------------------------------------------- */
-/**
- * PATCH /jobs/:id
- * - Updates job fields (taskName, priority)
- * - Used for inline edit feature in frontend
- */
 export const updateJob = async (req, res) => {
   try {
     const { id } = req.params;
     const { taskName, priority } = req.body;
 
-    // Validation
     if (!taskName || !priority) {
       return res.status(400).json({
         message: "taskName and priority are required",
@@ -224,7 +200,6 @@ export const updateJob = async (req, res) => {
 
     res.json({ message: "Job updated successfully" });
   } catch (error) {
-    console.error("Update error:", error);
     res.status(500).json({ message: "Update failed" });
   }
 };

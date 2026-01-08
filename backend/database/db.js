@@ -4,12 +4,8 @@
  * Purpose:
  * - Initializes SQLite database connection
  * - Creates required tables if they don't exist
+ * - Safely adds new columns without breaking existing data
  * - Exports a shared database instance
- *
- * Why SQLite?
- * - Lightweight
- * - File-based
- * - Perfect for demos, assignments, and local job schedulers
  */
 
 import sqlite3 from "sqlite3";
@@ -20,14 +16,10 @@ import { fileURLToPath } from "url";
 /* -------------------------------------------------------------------------- */
 /*                            OPEN DATABASE CONNECTION                         */
 /* -------------------------------------------------------------------------- */
-/**
- *
- * Opens (or creates) the SQLite database file
- * - filename: local database file
- * - driver: sqlite3 driver
- */
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 export const db = await open({
   filename: path.join(__dirname, "../jobs.db"),
   driver: sqlite3.Database,
@@ -36,19 +28,7 @@ export const db = await open({
 /* -------------------------------------------------------------------------- */
 /*                               CREATE TABLE                                 */
 /* -------------------------------------------------------------------------- */
-/**
- * Creates the `jobs` table if it does not exist
- *
- * Table columns:
- * - id          : unique job identifier
- * - taskName    : name of the job/task
- * - payload     : optional JSON data (stored as string)
- * - priority    : job priority (low / medium / high)
- * - status      : pending | running | completed
- * - createdAt   : job creation timestamp
- * - updatedAt   : last update timestamp
- * - completedAt : completion timestamp
- */
+
 await db.exec(`
   CREATE TABLE IF NOT EXISTS jobs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,13 +43,28 @@ await db.exec(`
 `);
 
 /* -------------------------------------------------------------------------- */
-/*                              DEBUG / VERIFY                                */
+/*                     ADD WEBHOOK STATUS COLUMN (SAFE)                        */
 /* -------------------------------------------------------------------------- */
 /**
- * Logs existing tables in the database
- * Useful during development to confirm table creation
+ * SQLite does NOT support "ADD COLUMN IF NOT EXISTS"
+ * So we wrap it in try/catch to avoid crashing on restart
  */
+
+try {
+  await db.exec(`
+    ALTER TABLE jobs
+    ADD COLUMN webhookStatus TEXT DEFAULT 'pending'
+  `);
+} catch (error) {
+  // Column already exists → ignore error safely
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              DEBUG / VERIFY                                */
+/* -------------------------------------------------------------------------- */
+
 const rows = await db.all(
   "SELECT name FROM sqlite_master WHERE type='table'"
 );
-console.log(rows);
+
+console.log("Tables in DB:", rows);
