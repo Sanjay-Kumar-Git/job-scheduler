@@ -12,6 +12,11 @@ This project simulates how real-world background job systems work in production 
 - The Job Scheduler Dashboard is designed to manage asynchronous background jobs.
 
 - Each job goes through a lifecycle: `pending → running → completed`
+
+#### => Project Live: https://jobs-scheduler.vercel.app/
+#### => Backend Live: https://job-scheduler-backend-qfq4.onrender.com/jobs
+#### => Repo Link: https://github.com/Sanjay-Kumar-Git/job-scheduler.git
+
 ---
 ## 📁 Project Structure
 ```
@@ -440,6 +445,6 @@ Full-Stack Developer<br/></b>
 
   * Event-based notifications using webhooks
 ---
-  # Note:
+  #### Note:
 <i>This project uses SQLite as per the assignment requirement.
 When deployed on Render Free tier, the SQLite database is stored in ephemeral storage, so data may reset when the service restarts.
